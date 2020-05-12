@@ -1,0 +1,62 @@
+#! /bin/szh
+
+read -p "Reformatting all partitions... (press Enter to continue)" -s
+echo
+
+echo "Formatting /dev/nvme0n1p1 (/efi)"
+mkfs.fat -F32 -i ff321e9f /dev/nvme0n1p1
+
+echo "Formatting /dev/nvme0n1p2 (/boot)"
+mkfs.ext4 -U 52dd7b6a-d6b9-4889-9703-0c0a7b95d615 /dev/nvme0n1p2
+
+echo "Creating LUKS container for /dev/nvme0n1p3 (/)"
+cryptsetup --verify-passphrase --verbose --cipher aes-xts-plain64 --key-size 512 --use-random --uuid=a7fc46e6-30e3-4272-a2e8-2a42c2ecbe5d luksFormat /dev/nvme0n1p3
+
+echo "LUKS: map /dev/nvme0n1p3 to cryptlvm"
+cryptsetup open --type luks /dev/nvme0n1p3 cryptlvm
+
+echo "LVM: creating physical volume on top of opened LUKS container..."
+pvcreate /dev/mapper/cryptlvm
+
+echo "Creating the volume group NVME1T1..."
+vgcreate NVME1T1 /dev/mapper/cryptlvm
+
+function setup()
+{
+	MOUNTPOINT=$1
+	TYPE=$2
+	UUID=$3
+        SIZE=$4
+
+	NAME="$(echo $MOUNTPOINT | sed -e 's%^/%%;s%/%_%g')"
+        echo "Creating logical volume $NAME with size $SIZE"
+	if [[ $SIZE != *%* ]]; then
+		lvcreate -L $SIZE NVME1T1 -n $NAME
+	else
+		lvcreate -l $SIZE NVME1T1 -n $NAME
+	fi
+
+	echo "Formatting /dev/NVME1T1/$NAME using mkfs.$TYPE"
+	mkfs.$TYPE -U $UUID /dev/NVME1T1/$NAME
+}
+
+echo "Creating logical volume swap with size 32G"
+lvcreate -L 32G NVME1T1 -n swap
+
+echo "Creating logical volume root with size 4G"
+lvcreate -L 4G  NVME1T1 -n root
+
+echo "Formatting /dev/NVME1T1/root using mkfs.ext4 and installing files from /root/data/root in it..."
+mkfs.ext4 -U fe3efaf9-112e-4cbb-8f34-922dd7872aa0 -d /root/data/root /dev/NVME1T1/root
+
+setup /usr ext4 b41c583d-c570-4882-a676-af9e395a2dce 32G
+setup /var btrfs 1c9c0dc0-fc38-46ae-ac60-80d86b132ae4 8G
+setup /usr/local ext4 3d48b4a9-49a4-4934-b4bf-c4f4753a1fa9 16G
+setup /usr/src btrfs 0cca01f5-e7ca-44b6-98d4-74c5c9ea1883 256G
+setup /home btrfs 7cbf8e49-4d2e-4233-86f3-067008003a7c 32G
+setup /opt ext4 b9f357be-e96c-415f-9da1-1a71d9d6462d 100%FREE
+
+# Set up encrypted swap.
+echo "Creating swap..."
+mkswap --uuid 5252b7f8-db36-4228-b873-cbd50fc60dea /dev/NVME1T1/swap
+swapon /dev/NVME1T1/swap

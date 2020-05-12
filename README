@@ -1,0 +1,98 @@
+Installing from archiso
+=======================
+
+Put the USB stick in daniel and boot.
+Press F12 to enter boot menu and choose the USB stick.
+In the UEFI menu, choose arch linux.
+
+To find the IP#:
+  ip address
+
+Test network with:
+  ping 192.168.0.14
+
+Get bootstrap.tar and run bootstrap:
+  # in /root:
+  ln -sf /usr/local/bin
+  scp carlo@192.168.0.14:/usr/src/daniel/bootstrap.tar .
+  tar xhf bootstrap.tar
+  bootstrap
+
+To RECREATE bootstrap.tar and back it up, run:
+  backup  
+
+This is needed every time anything in ~/.ssh or ~/bin is changed.
+
+
+The following scripts exist:
+
+  bootstrap             -- See above (mounts all filesystems)
+  backup                -- See above (makes backup of certain config files and these scripts)
+
+  unpack_initrd         -- Unpacks /mnt/boot/initramfs-linux.ing into /root/initrd
+
+  update_grub           -- Run this after changing /mnt/etc/default/grub
+  update_initcpio       -- Run this after changing /mnt/etc/mkinitcpio.conf
+
+  # When starting from scratch (this destroys everything), see below.
+  reformat-nvme         -- Recreate partition table, all filesystems (including swap). Also mounts them.
+  install_base          -- Base install of archlinux
+  install_arch          -- Install all packages from /root/data/packages
+
+
+STARTING FROM SCRATCH: THIS WILL DESTROY ALL DATA ON THE DISK
+-------------------------------------------------------------
+
+  Do not run 'bootstrap' (above), or follow up with umount -R /mnt
+
+  Basically we're following https://wiki.archlinux.org/index.php/Installation_guide :
+
+  Run `bootstrap1` OR do 1..5:
+
+  1) Check that `ls /sys/firmware/efi/efivars` is not empty.
+  2) Check that `ip link` shows your network devices.
+  3) Check that `ip address` shows that enp12s0 has IP 192.168.0.17.
+     If the IP address is different, fix /etc/hosts on sean and
+     in data/root/etc/hosts.
+  4) Test network with: `ping -c 3 archlinux.org`
+  5) Run `timedatectl set-ntp true`
+
+  To RECREATE to whole filesystem from scratch:
+
+  Create partition table from backup:
+    sgdisk --load-backup=/root/data/nvme0n1.gpt /dev/nvme0n1
+
+  OR
+
+  [
+    Optionally reset the NVME to factory settings with:
+      pacman -Sy nvme
+      nvme format /dev/nvme0 --ses=1
+  ]
+
+  create a *new* partition table from scratch by hand:
+    sgdisk /dev/nvme0n1
+
+    Suggested values:
+
+      /dev/nvme0n1p1   100 MiB   ef00   /efi            mkfs.fat -F32 /dev/nvme0n1p1
+      /dev/nvme0n1p2   2 GiB     8300   /boot
+      /dev/nvme0n1p3   929 GiB   8309   LVM on LUKS     The rest (929.4 GiB).        
+
+  Print partition table with:
+    sgdisk -p /dev/nvme0n1
+
+  Reformat all partitions:
+    reformat-nvme
+
+  After this run:
+    install_base
+
+  After reboot run:
+   systemctl enable systemd-networkd
+   systemctl start systemd-networkd
+   pacman -S openssh
+   systemctl enable sshd
+   systemctl start sshd
+   pacman -S schroot
+

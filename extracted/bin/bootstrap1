@@ -1,0 +1,19 @@
+#! /bin/sh
+
+read -p "Listing /sys/firmware/efi/efivars... (press Enter)" -s
+echo
+ls /sys/firmware/efi/efivars
+
+read -p "Testing if we have internet... (press Enter)" -s
+echo
+ping -c 3 archlinux.org
+
+echo "Update system clock..."
+timedatectl set-ntp true
+
+read -p "Listing block devices... (press Enter)" -s
+echo
+lsblk -f
+
+echo "Starting gpm..."
+systemctl start gpm

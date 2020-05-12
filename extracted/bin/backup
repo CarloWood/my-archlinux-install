@@ -1,0 +1,13 @@
+#! /bin/sh
+
+cd /root
+sgdisk --backup=data/nvme0n1.gpt /dev/nvme0n1
+cp /mnt/etc/{adjtime,fstab,hosts,hostname,locale.conf,locale.gen,mkinitcpio.conf,vconsole.conf,resolv.conf} data/root/etc
+cp /mnt/etc/pacman.d/mirrorlist data/root/etc/pacman.d
+cp /mnt/etc/default/grub data/root/etc/default
+cp /mnt/etc/systemd/network/20-wired.network data/root/etc/systemd/network
+cp /mnt/etc/ssh/{sshd_config,ssh_config,ssh_host_ed25519_key,ssh_host_ed25519_key.pub} data/root/etc/ssh
+cp /mnt/root/{.bash_profile,.bashrc} data/root/root
+tar chf bootstrap.tar .ssh bin data
+scp bootstrap.tar sean:/usr/src/daniel
+

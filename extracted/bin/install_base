@@ -1,0 +1,39 @@
+#! /bin/sh
+
+read -p "Installing packages... (press Enter to continue)" -s
+echo
+ 
+pacstrap /mnt base linux linux-firmware $(cat /root/data/packages)
+
+read -p "Setting up timezone... (press Enter to continue)" -s
+echo
+
+arch-chroot /mnt ln -sf /usr/share/zoneinfo/Europe/Amsterdam /etc/localtime
+
+read -p "Setting up locale... (press Enter to continue)" -s
+echo
+
+cp /root/data/root/etc/locale.gen /mnt/etc/locale.gen
+arch-chroot /mnt locale-gen
+
+cp /root/data/root/etc/{locale.conf,hostname,hosts} /mnt/etc
+
+read -p "Generating new /etc/fstab... (press Enter to continue)" -s
+echo
+
+mv /mnt/etc/fstab /mnt/etc/fstab.old
+head -n 4 /mnt/etc/fstab.old > /mnt/etc/fstab
+genfstab -U /mnt >> /mnt/etc/fstab
+
+echo "Set a root passwd now:"
+arch-chroot /mnt passwd
+
+read -p "Generating initramfs.. (press Enter to continue)" -s
+echo
+
+/root/bin/update_initcpio
+
+read -p "Generating grub.cfg and installing grub... (press Enter to continue)" -s
+echo
+
+/root/bin/update_grub

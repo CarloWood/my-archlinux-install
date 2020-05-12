@@ -1,0 +1,6 @@
+#! /bin/sh
+
+cd /root
+rm -rf /root/initrd
+mkdir /root/initrd
+cd initrd && lsinitcpio -x /mnt/boot/initramfs-linux.img

@@ -1,0 +1,49 @@
+#! /bin/sh
+
+/root/bin/bootstrap1
+
+read -p "Setting up LVM containers and mounting all filesystems... (press Enter)" -s
+echo
+
+echo "LUKS: map /dev/nvme0n1p3 to cryptlvm"
+cryptsetup open --type luks /dev/nvme0n1p3 cryptlvm
+
+read -p "Mounting root... (press Enter)" -s
+echo
+mount -t ext4 /dev/NVME1T1/root /mnt
+
+function mountlv()
+{
+	MOUNTPOINT=$1
+	TYPE=$2
+	UUID=$3
+        SIZE=$4
+
+	NAME="$(echo $MOUNTPOINT | sed -e 's%^/%%;s%/%_%g')"
+	echo "Mounting /dev/NVME1T1/$NAME on /mnt$MOUNTPOINT"
+	test -d "/mnt$MOUNTPOINT" || mkdir /mnt$MOUNTPOINT
+	mount  -t $TYPE /dev/NVME1T1/$NAME /mnt$MOUNTPOINT
+}
+
+read -p "Mounting other lvm devices... (press Enter)" -s
+echo
+
+mountlv /usr ext4 b41c583d-c570-4882-a676-af9e395a2dce 32G
+mountlv /var btrfs 1c9c0dc0-fc38-46ae-ac60-80d86b132ae4 8G
+mountlv /usr/local ext4 3d48b4a9-49a4-4934-b4bf-c4f4753a1fa9 16G
+mountlv /usr/src btrfs 0cca01f5-e7ca-44b6-98d4-74c5c9ea1883 256G
+mountlv /home btrfs 7cbf8e49-4d2e-4233-86f3-067008003a7c 32G
+mountlv /opt ext4 b9f357be-e96c-415f-9da1-1a71d9d6462d 100%FREE
+
+# Set up encrypted swap.
+echo "Turning on swap..."
+swapon /dev/NVME1T1/swap
+
+read -p "Mounting /boot and /boot/efi... (press Enter)" -s
+echo
+
+# Mount /boot and /boot/efi
+test -d "/mnt/boot" || mkdir /mnt/boot
+mount /dev/nvme0n1p2 /mnt/boot
+test -d "/mnt/boot/efi" || mkdir /mnt/boot/efi
+mount /dev/nvme0n1p1 /mnt/boot/efi
